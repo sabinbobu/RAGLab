@@ -14,4 +14,25 @@ def recursive_chunk(
     Returns:
         list of text chunks
     """
-    raise NotImplementedError
+    if not text.strip():
+        return []
+
+    chunks = []
+    # step is how far we move forward after each chunk
+    # smaller than chunk_size by `overlap` so consecutive chunks share context
+    step = chunk_size - overlap
+    start = 0
+
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end].strip()
+
+        # only keep chunks that have actual content
+        if chunk:
+            chunks.append(chunk)
+
+        # move forward by step, not chunk_size
+        # this is what creates the overlap
+        start += step
+
+    return chunks
