@@ -33,8 +33,8 @@ class AnthropicProvider:
 
         latency_ms = (time.perf_counter() - start) * 1000
 
-        input_tokens = response.usage.prompt_tokens
-        output_tokens = response.usage.completion_tokens
+        input_tokens = response.usage.input_tokens
+        output_tokens = response.usage.output_tokens
 
         pricing = MODEL_PRICING.get(model, {"input": 0.0, "output": 0.0})
         cost_usd = (

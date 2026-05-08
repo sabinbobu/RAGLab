@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from raglab.config import settings
+from raglab.experiments import ExperimentConfig, run_experiment
 from raglab.gateway import LLMResponse
 from raglab.gateway.factory import get_provider
 from raglab.prompts import load_prompt
@@ -84,3 +85,13 @@ def query(request: QueryRequest) -> QueryResponse:
         cost_usd=llm_response.cost_usd,
         latency_ms=latency_ms,
     )
+
+
+@app.post("/experiments/run")
+def run_experiments(config: ExperimentConfig) -> dict:
+    results = run_experiment(config)
+    return {
+        "total_runs": len(results),
+        "experiment_id": results[0].experiment_id if results else None,
+        "runs": [r.model_dump() for r in results],
+    }
