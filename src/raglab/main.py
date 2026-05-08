@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from raglab.config import settings
 from raglab.experiments import ExperimentConfig, run_experiment
+from raglab.experiments.eval import Scorecard, evaluate_experiment
 from raglab.gateway import LLMResponse
 from raglab.gateway.factory import get_provider
 from raglab.prompts import load_prompt
@@ -95,3 +96,8 @@ def run_experiments(config: ExperimentConfig) -> dict:
         "experiment_id": results[0].experiment_id if results else None,
         "runs": [r.model_dump() for r in results],
     }
+
+
+@app.post("/experiments/evaluate")
+def evaluate(experiment_id: str) -> list[Scorecard]:
+    return evaluate_experiment(experiment_id)

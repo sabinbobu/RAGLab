@@ -1,4 +1,5 @@
 import itertools
+import json
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -62,6 +63,7 @@ def run_experiment(config: ExperimentConfig) -> list[RunResult]:
         try:
             # retrieve relevant chunks for this question
             chunks = retriever.retrieve(question, top_k=config.top_k)
+            contexts = [chunk.text for chunk in chunks]
 
             if not chunks:
                 print("    ⚠ No chunks found, skipping.")
@@ -94,6 +96,7 @@ def run_experiment(config: ExperimentConfig) -> list[RunResult]:
                 answer=llm_response.text,
                 cost_usd=llm_response.cost_usd,
                 latency_ms=llm_response.latency_ms,
+                contexts=json.dumps(contexts),
                 # timezone-aware UTC timestamp
                 created_at=datetime.now(timezone.utc),
             )
