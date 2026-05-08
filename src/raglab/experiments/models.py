@@ -9,6 +9,9 @@ class RunResult(SQLModel, table=True):
     model: str
     prompt_version: str
     question: str
+    contexts: str = Field(
+        default="[]"
+    )  # stored as JSON string — list[str] serialized with json.dumps
     answer: str
     cost_usd: float
     latency_ms: float
