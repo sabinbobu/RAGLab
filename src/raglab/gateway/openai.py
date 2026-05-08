@@ -10,12 +10,13 @@ class OpenAIProvider:
     def __init__(self, api_key: str) -> None:
         self.client = OpenAI(api_key=api_key)
 
-    def generate(self, prompt: str, model: str) -> LLMResponse:
+    def generate(self, messages: list[dict], model: str) -> LLMResponse:
         start = time.perf_counter()
 
         response = self.client.chat.completions.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
+            # OpenAI accepts messages list natively — system + user roles work as-is
+            messages=messages,
         )
 
         latency_ms = (time.perf_counter() - start) * 1000
