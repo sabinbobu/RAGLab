@@ -51,20 +51,30 @@ def query(request: QueryRequest) -> QueryResponse:
     if not chunks:
         raise HTTPException(status_code=404, detail="No relevant chunks found.")
 
-    # step 2: load prompt template and inject context + question
+    # step 2: load and validate prompt template
     prompt_template = load_prompt(request.prompt_version)
+
+    # format context — each chunk prefixed with citation so LLM can reference it
     context = "\n\n".join(
         f"[{chunk.source}, page {chunk.page}]\n{chunk.text}" for chunk in chunks
     )
-    prompt = prompt_template["user"].format(
+
+    # inject context and question into user template
+    user_content = prompt_template["user"].format(
         context=context,
         question=request.question,
     )
 
-    # step 3: call LLM via gateway with system prompt
-    full_prompt = f"{prompt_template['system']}\n\n{prompt}"
+    # step 3: build messages list with proper roles
+    # system and user are separate — both providers handle this correctly now
+    messages = [
+        {"role": "system", "content": prompt_template["system"]},
+        {"role": "user", "content": user_content},
+    ]
+
+    # step 4: call LLM via gateway
     provider = get_provider(request.provider)
-    llm_response = provider.generate(full_prompt, request.model)
+    llm_response = provider.generate(messages, request.model)
 
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
 

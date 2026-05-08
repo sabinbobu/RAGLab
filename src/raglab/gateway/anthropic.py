@@ -10,13 +10,25 @@ class AnthropicProvider:
     def __init__(self, api_key: str) -> None:
         self.client = Anthropic(api_key=api_key)
 
-    def generate(self, prompt: str, model: str) -> LLMResponse:
+    def generate(self, messages: list[dict], model: str) -> LLMResponse:
         start = time.perf_counter()
+
+        # Anthropic requires system prompt as a separate parameter
+        # extract it from the messages list before calling the SDK
+        system = next(
+            (m["content"] for m in messages if m["role"] == "system"),
+            "You are a helpful assistant.",  # fallback if no system message
+        )
+
+        # filter out system messages — Anthropic only accepts user/assistant roles
+        # in the messages list
+        user_messages = [m for m in messages if m["role"] != "system"]
 
         response = self.client.messages.create(
             model=model,
-            max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
+            system=system,
+            messages=user_messages,
         )
 
         latency_ms = (time.perf_counter() - start) * 1000
