@@ -17,6 +17,7 @@ dependencies = [
     "pypdf>=5.0.0",
     "pyyaml>=6.0.0",
     "sqlmodel>=0.0.21",
+    "rank-bm25>=0.2.2",
 ]
 
 [project.scripts]
