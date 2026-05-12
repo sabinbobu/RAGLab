@@ -9,6 +9,7 @@ Requires the FastAPI backend to be running:
 
 from __future__ import annotations
 
+import itertools
 from collections import Counter
 
 import chromadb
@@ -173,9 +174,14 @@ with query_tab:
                 st.warning("Please enter a question.")
             else:
                 try:
-                    with st.spinner(
-                        f"Running RAG pipeline with {DISPLAY_NAMES.get(model, model)}…"
-                    ):
+                    model_name = DISPLAY_NAMES.get(model, model)
+                    with st.status(
+                        "Running RAG pipeline…", expanded=True
+                    ) as rag_status:
+                        st.write(
+                            f"**Step 1 / 2** — Retrieving {top_k} chunks"
+                            f" via **{retriever_strategy}**"
+                        )
                         resp = httpx.post(
                             f"{API_BASE}/query",
                             json={
@@ -190,6 +196,19 @@ with query_tab:
                         )
                         resp.raise_for_status()
                         data = resp.json()
+                        n_src = len(data.get("sources", []))
+                        st.write(f"**Step 1 / 2** — Retrieved {n_src} chunks ✓")
+                        st.write(
+                            f"**Step 2 / 2** — Generated answer with"
+                            f" **{model_name}** —"
+                            f" {data['latency_ms']:.0f} ms"
+                            f" · ${data['cost_usd']:.5f} ✓"
+                        )
+                        rag_status.update(
+                            label="Pipeline complete",
+                            state="complete",
+                            expanded=False,
+                        )
 
                     # Metrics row
                     m1, m2 = st.columns(2)
@@ -302,9 +321,16 @@ with experiment_tab:
 
     if run_btn:
         try:
-            with st.spinner(
-                f"Running {n_runs} combinations… please wait, this may take a minute."
-            ):
+            combos = list(
+                itertools.product(selected_models, selected_prompts, valid_qs)
+            )
+            with st.status(
+                f"Running {n_runs} combinations…", expanded=True
+            ) as exp_status:
+                st.write("**Queued runs:**")
+                for m, p, q in combos:
+                    st.write(f"· {DISPLAY_NAMES.get(m, m)} × **{p}**" f" × `{q[:60]}`")
+                st.caption("Calling the API — one LLM request per run." " Please wait.")
                 resp = httpx.post(
                     f"{API_BASE}/experiments/run",
                     json={
@@ -319,15 +345,20 @@ with experiment_tab:
                 )
                 resp.raise_for_status()
                 data = resp.json()
+                completed = data["total_runs"]
+                exp_status.update(
+                    label=f"{completed}/{n_runs} runs completed ✓",
+                    state="complete",
+                    expanded=False,
+                )
 
-            completed = data["total_runs"]
             st.session_state.experiment_id = data["experiment_id"]
             st.session_state.scorecards = None
-            st.success(
-                f"Experiment complete — {completed}/{n_runs} runs succeeded. "
-                "Switch to the **Results** tab to evaluate with Ragas."
+            st.success("Switch to the **Results** tab to evaluate with Ragas.")
+            st.code(
+                f"experiment_id: {st.session_state.experiment_id}",
+                language=None,
             )
-            st.code(f"experiment_id: {st.session_state.experiment_id}", language=None)
 
         except httpx.HTTPStatusError as exc:
             detail = exc.response.json().get("detail", str(exc))
@@ -351,10 +382,13 @@ with results_tab:
 
         if eval_btn:
             try:
-                with st.spinner(
-                    "Evaluating faithfulness with Ragas… "
-                    "this makes additional LLM calls."
-                ):
+                with st.status("Evaluating with Ragas…", expanded=True) as eval_status:
+                    st.write("**Step 1 / 3** — Loading runs from SQLite")
+                    st.write(
+                        "**Step 2 / 3** — Scoring answers with"
+                        " **Faithfulness** (LLM-as-judge via OpenAI)"
+                    )
+                    st.write("**Step 3 / 3** — Building scorecards")
                     resp = httpx.post(
                         f"{API_BASE}/experiments/evaluate",
                         params={"experiment_id": st.session_state.experiment_id},
@@ -362,6 +396,12 @@ with results_tab:
                     )
                     resp.raise_for_status()
                     st.session_state.scorecards = resp.json()
+                    n = len(st.session_state.scorecards)
+                    eval_status.update(
+                        label=f"Evaluation complete — {n} scorecard(s) ✓",
+                        state="complete",
+                        expanded=False,
+                    )
 
             except httpx.HTTPStatusError as exc:
                 detail = exc.response.json().get("detail", str(exc))
