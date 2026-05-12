@@ -24,4 +24,4 @@ class Settings(BaseSettings):
 
 
 # Singleton — import this everywhere, don't create new instances
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

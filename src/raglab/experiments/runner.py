@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import chromadb
 from pydantic import BaseModel
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -46,7 +47,9 @@ def run_experiment(config: ExperimentConfig) -> list[RunResult]:
     # so you can query "show me all runs from experiment X"
     experiment_id = str(uuid4())
 
-    retriever = get_retriever(config.retriever, collection="raglab")
+    _client = chromadb.PersistentClient(path=".chroma")
+    _collection = _client.get_collection(name="raglab")
+    retriever = get_retriever(config.retriever, _collection)
     results = []
 
     # itertools.product expands the matrix

@@ -1,9 +1,10 @@
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 
-def load_prompt(version: str) -> dict:
+def load_prompt(version: str) -> dict[str, Any]:
     """
     Load and validate a prompt template by version string.
 
@@ -22,14 +23,14 @@ def load_prompt(version: str) -> dict:
         )
 
     with open(prompt_file, encoding="utf-8") as f:
-        prompt = yaml.safe_load(f)
+        prompt: dict[str, Any] = yaml.safe_load(f)
 
     _validate_prompt(prompt, version)
 
     return prompt
 
 
-def _validate_prompt(prompt: dict, version: str) -> None:
+def _validate_prompt(prompt: dict[str, Any], version: str) -> None:
     """
     Validate that a prompt template has all required keys.
 

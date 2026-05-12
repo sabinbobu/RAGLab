@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+from anthropic.types import TextBlock
+
 from raglab.gateway.anthropic import AnthropicProvider
 from raglab.gateway.openai import OpenAIProvider
 
@@ -33,7 +35,7 @@ def test_openai_provider_returns_normalized_response():
 
 def test_anthropic_provider_returns_normalized_response():
     mock_response = MagicMock()
-    mock_response.content[0].text = "Hello from Anthropic"
+    mock_response.content = [TextBlock(type="text", text="Hello from Anthropic")]
     mock_response.usage.input_tokens = 10
     mock_response.usage.output_tokens = 20
 
@@ -65,7 +67,7 @@ def test_gateway_normalizes_both_providers_to_same_shape():
     mock_openai.usage.completion_tokens = 5
 
     mock_anthropic = MagicMock()
-    mock_anthropic.content[0].text = "answer"
+    mock_anthropic.content = [TextBlock(type="text", text="answer")]
     mock_anthropic.usage.input_tokens = 5
     mock_anthropic.usage.output_tokens = 5
 

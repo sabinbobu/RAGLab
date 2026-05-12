@@ -1,9 +1,10 @@
 from pathlib import Path
+from typing import Any
 
 import pypdf
 
 
-def load_pdf(path: str) -> list[dict]:
+def load_pdf(path: str) -> list[dict[str, Any]]:
     """
     Extract text from a PDF file page by page.
 
@@ -32,7 +33,7 @@ def load_pdf(path: str) -> list[dict]:
     return pages
 
 
-def load_markdown(path: str) -> list[dict]:
+def load_markdown(path: str) -> list[dict[str, Any]]:
     """
     Load a Markdown file as a single document.
 

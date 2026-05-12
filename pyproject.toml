@@ -36,6 +36,9 @@ where = ["src"]
 line-length = 88
 src = ["src"]
 
+[tool.logfire]
+ignore_no_config = true
+
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
