@@ -1,4 +1,5 @@
 import time
+from typing import Any
 
 import logfire
 from openai import OpenAI
@@ -11,18 +12,19 @@ class OpenAIProvider:
     def __init__(self, api_key: str) -> None:
         self.client = OpenAI(api_key=api_key)
 
-    def generate(self, messages: list[dict], model: str) -> LLMResponse:
+    def generate(self, messages: list[dict[str, Any]], model: str) -> LLMResponse:
         start = time.perf_counter()
 
         with logfire.span("openai.chat.completions", model=model):
             response = self.client.chat.completions.create(
                 model=model,
                 # OpenAI accepts messages list natively — system + user roles work as-is
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]
             )
 
         latency_ms = (time.perf_counter() - start) * 1000
 
+        assert response.usage is not None
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
 

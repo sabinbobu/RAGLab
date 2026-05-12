@@ -1,5 +1,7 @@
 import time
+from typing import Any
 
+import chromadb
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -10,7 +12,7 @@ from raglab.gateway import LLMResponse
 from raglab.gateway.factory import get_provider
 from raglab.prompts import load_prompt
 from raglab.retrieval.base import RetrievedChunk
-from raglab.retrieval.chroma import ChromaRetriever
+from raglab.retrieval.factory import get_retriever
 from raglab.telemetry import setup_telemetry
 
 app = FastAPI(title="RAGLab")
@@ -30,6 +32,7 @@ class QueryRequest(BaseModel):
     model: str = settings.default_model
     prompt_version: str = "v1"
     top_k: int = 5
+    retriever: str = "chroma"
 
 
 class QueryResponse(BaseModel):
@@ -42,15 +45,19 @@ class QueryResponse(BaseModel):
 @app.post("/generate", response_model=LLMResponse)
 def generate(request: GenerateRequest) -> LLMResponse:
     provider = get_provider(request.provider)
-    return provider.generate(request.prompt, request.model)
+    return provider.generate(
+        [{"role": "user", "content": request.prompt}], request.model
+    )
 
 
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
     start = time.perf_counter()
 
-    # step 1: retrieve relevant chunks from ChromaDB
-    retriever = ChromaRetriever(collection_name="raglab")
+    # step 1: retrieve relevant chunks using the requested strategy
+    _client = chromadb.PersistentClient(path=".chroma")
+    _collection = _client.get_collection(name="raglab")
+    retriever = get_retriever(request.retriever, _collection)
     chunks = retriever.retrieve(request.question, top_k=request.top_k)
 
     if not chunks:
@@ -92,7 +99,7 @@ def query(request: QueryRequest) -> QueryResponse:
 
 
 @app.post("/experiments/run")
-def run_experiments(config: ExperimentConfig) -> dict:
+def run_experiments(config: ExperimentConfig) -> dict[str, Any]:
     results = run_experiment(config)
     return {
         "total_runs": len(results),
@@ -107,5 +114,5 @@ def evaluate(experiment_id: str) -> list[Scorecard]:
 
 
 @app.get("/")
-def health() -> dict:
+def health() -> dict[str, str]:
     return {"status": "ok", "service": "raglab"}

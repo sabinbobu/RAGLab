@@ -28,7 +28,7 @@ class ChromaRetriever:
 
         with logfire.span("chroma.query", collection=self.collection.name, top_k=top_k):
             results = self.collection.query(
-                query_embeddings=[query_vector],
+                query_embeddings=[query_vector],  # type: ignore[arg-type]
                 n_results=top_k,
                 # tell ChromaDB to return documents, metadatas and distances
                 include=["documents", "metadatas", "distances"],
@@ -38,6 +38,10 @@ class ChromaRetriever:
 
         # results are nested in lists because ChromaDB supports batch queries
         # [0] unwraps the first (and only) query in our batch
+        # the fields are always present given our include= parameter, asserts confirm it
+        assert results["documents"] is not None
+        assert results["metadatas"] is not None
+        assert results["distances"] is not None
         documents = results["documents"][0]
         metadatas = results["metadatas"][0]
         distances = results["distances"][0]
@@ -46,8 +50,8 @@ class ChromaRetriever:
             chunks.append(
                 RetrievedChunk(
                     text=text,
-                    source=metadata["source"],
-                    page=metadata["page"],
+                    source=str(metadata["source"]),
+                    page=int(metadata["page"]),  # type: ignore[arg-type]
                     # ChromaDB returns distance (lower = more similar)
                     # convert to score (higher = more similar) for readability
                     score=round(1 - distance, 4),

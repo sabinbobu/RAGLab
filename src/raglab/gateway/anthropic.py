@@ -1,7 +1,9 @@
 import time
+from typing import Any
 
 import logfire
 from anthropic import Anthropic
+from anthropic.types import TextBlock
 
 from raglab.config import MODEL_PRICING
 from raglab.gateway.base import LLMResponse
@@ -11,7 +13,7 @@ class AnthropicProvider:
     def __init__(self, api_key: str) -> None:
         self.client = Anthropic(api_key=api_key)
 
-    def generate(self, messages: list[dict], model: str) -> LLMResponse:
+    def generate(self, messages: list[dict[str, Any]], model: str) -> LLMResponse:
         start = time.perf_counter()
 
         # Anthropic requires system prompt as a separate parameter
@@ -30,7 +32,7 @@ class AnthropicProvider:
                 model=model,
                 max_tokens=1024,
                 system=system,
-                messages=user_messages,
+                messages=user_messages,  # type: ignore[arg-type]
             )
 
         latency_ms = (time.perf_counter() - start) * 1000
@@ -43,8 +45,14 @@ class AnthropicProvider:
             input_tokens * pricing["input"] + output_tokens * pricing["output"]
         ) / 1_000_000
 
+        # response.content can contain non-text blocks (tool use, thinking, etc.)
+        # find the first TextBlock to extract the answer
+        text_block = next(
+            (b for b in response.content if isinstance(b, TextBlock)), None
+        )
+
         return LLMResponse(
-            text=response.content[0].text or "",
+            text=text_block.text if text_block else "",
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,

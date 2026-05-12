@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
@@ -16,4 +16,4 @@ class LLMResponse(BaseModel):
 
 
 class LLMProvider(Protocol):
-    def generate(self, messages: list[dict], model: str) -> LLMResponse: ...
+    def generate(self, messages: list[dict[str, Any]], model: str) -> LLMResponse: ...

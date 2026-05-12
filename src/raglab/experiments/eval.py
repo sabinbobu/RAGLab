@@ -1,10 +1,11 @@
 import json
 import os
 from itertools import groupby
+from typing import Union
 
 from pydantic import BaseModel
 from ragas import EvaluationDataset, SingleTurnSample, evaluate
-from ragas.metrics import _Faithfulness
+from ragas.metrics import Faithfulness
 from sqlmodel import Session, select
 
 from raglab.config import settings
@@ -41,7 +42,7 @@ def evaluate_experiment(experiment_id: str) -> list[Scorecard]:
         raise ValueError(f"No runs found for experiment_id: {experiment_id}")
 
     # group runs by (model, prompt_version) - one scorecard per combination
-    def group_key(r: RunResult) -> tuple:
+    def group_key(r: RunResult) -> tuple[str, str]:
         return (r.model, r.prompt_version)
 
     sorted_runs = sorted(runs, key=group_key)
@@ -51,7 +52,7 @@ def evaluate_experiment(experiment_id: str) -> list[Scorecard]:
         group_runs = list(group)
 
         # build Ragas dataset from this group
-        samples = []
+        samples: list[Union[SingleTurnSample, object]] = []
         for run in group_runs:
             samples.append(
                 SingleTurnSample(
@@ -62,16 +63,16 @@ def evaluate_experiment(experiment_id: str) -> list[Scorecard]:
                 )
             )
 
-        dataset = EvaluationDataset(samples=samples)
+        dataset = EvaluationDataset(samples=samples)  # type: ignore[arg-type]
 
         # run Ragas evaluation — this makes LLM calls internally
         results = evaluate(
             dataset=dataset,
-            metrics=[_Faithfulness()],
+            metrics=[Faithfulness()],
         )
 
         # results.to_pandas() gives a DataFrame — extract mean per metric
-        df = results.to_pandas()
+        df = results.to_pandas()  # type: ignore[union-attr]
 
         scorecards.append(
             Scorecard(
