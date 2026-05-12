@@ -72,8 +72,8 @@ def ingest(
             collection.add(
                 ids=ids,
                 documents=chunks,
-                embeddings=vectors,
-                metadatas=metadatas,
+                embeddings=vectors,  # type: ignore[arg-type]
+                metadatas=metadatas,  # type: ignore[arg-type]
             )
 
             total_chunks += len(chunks)

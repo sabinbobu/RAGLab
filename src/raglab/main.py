@@ -1,4 +1,5 @@
 import time
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -42,7 +43,9 @@ class QueryResponse(BaseModel):
 @app.post("/generate", response_model=LLMResponse)
 def generate(request: GenerateRequest) -> LLMResponse:
     provider = get_provider(request.provider)
-    return provider.generate(request.prompt, request.model)
+    return provider.generate(
+        [{"role": "user", "content": request.prompt}], request.model
+    )
 
 
 @app.post("/query", response_model=QueryResponse)
@@ -92,7 +95,7 @@ def query(request: QueryRequest) -> QueryResponse:
 
 
 @app.post("/experiments/run")
-def run_experiments(config: ExperimentConfig) -> dict:
+def run_experiments(config: ExperimentConfig) -> dict[str, Any]:
     results = run_experiment(config)
     return {
         "total_runs": len(results),
@@ -107,5 +110,5 @@ def evaluate(experiment_id: str) -> list[Scorecard]:
 
 
 @app.get("/")
-def health() -> dict:
+def health() -> dict[str, str]:
     return {"status": "ok", "service": "raglab"}

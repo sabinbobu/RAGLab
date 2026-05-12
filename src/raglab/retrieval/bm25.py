@@ -1,11 +1,13 @@
 # retrieval/bm25.py
-from rank_bm25 import BM25Okapi
+from typing import Any
+
+from rank_bm25 import BM25Okapi  # type: ignore[import-untyped]
 
 from raglab.retrieval.base import RetrievedChunk
 
 
 class BM25Retriever:
-    def __init__(self, chunks: list[str], metadata: list[dict]) -> None:
+    def __init__(self, chunks: list[str], metadata: list[dict[str, Any]]) -> None:
         tokenized = [doc.split() for doc in chunks]
         self.bm25 = BM25Okapi(tokenized)
         self.chunks = chunks
