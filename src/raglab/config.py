@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     default_model: str = "gpt-4o-mini"
     log_level: str = "INFO"
+    logfire_token: str = ""
 
 
 # Singleton — import this everywhere, don't create new instances

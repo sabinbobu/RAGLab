@@ -18,6 +18,8 @@ dependencies = [
     "pyyaml>=6.0.0",
     "sqlmodel>=0.0.21",
     "rank-bm25>=0.2.2",
+    "logfire[fastapi]>=4.32.1",
+    "opentelemetry-sdk>=1.40.0",
 ]
 
 [project.scripts]

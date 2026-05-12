@@ -1,4 +1,5 @@
 import chromadb
+import logfire
 
 from raglab.ingestion.embedder import embed_batch
 from raglab.retrieval.base import RetrievedChunk
@@ -25,12 +26,13 @@ class ChromaRetriever:
         # embed_batch expects a list, returns a list — we only need the first vector
         query_vector = embed_batch([query])[0]
 
-        results = self.collection.query(
-            query_embeddings=[query_vector],
-            n_results=top_k,
-            # tell ChromaDB to return documents, metadatas and distances
-            include=["documents", "metadatas", "distances"],
-        )
+        with logfire.span("chroma.query", collection=self.collection.name, top_k=top_k):
+            results = self.collection.query(
+                query_embeddings=[query_vector],
+                n_results=top_k,
+                # tell ChromaDB to return documents, metadatas and distances
+                include=["documents", "metadatas", "distances"],
+            )
 
         chunks = []
 
