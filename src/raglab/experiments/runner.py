@@ -9,7 +9,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from raglab.experiments.models import RunResult
 from raglab.gateway.factory import get_provider
 from raglab.prompts import load_prompt
-from raglab.retrieval.chroma import ChromaRetriever
+from raglab.retrieval.factory import get_retriever
 
 DATABASE_URL = "sqlite:///raglab.db"
 engine = create_engine(DATABASE_URL)
@@ -26,6 +26,7 @@ class ExperimentConfig(BaseModel):
     questions: list[str]
     top_k: int = 5
     provider: str = "openai"
+    retriever: str = "chroma"
 
 
 def run_experiment(config: ExperimentConfig) -> list[RunResult]:
@@ -45,7 +46,7 @@ def run_experiment(config: ExperimentConfig) -> list[RunResult]:
     # so you can query "show me all runs from experiment X"
     experiment_id = str(uuid4())
 
-    retriever = ChromaRetriever(collection_name="raglab")
+    retriever = get_retriever(config.retriever, collection="raglab")
     results = []
 
     # itertools.product expands the matrix
