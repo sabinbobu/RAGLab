@@ -24,8 +24,8 @@ API_BASE = "http://localhost:8000"
 st.set_page_config(page_title="RAGLab", page_icon="🧪", layout="wide")
 
 # ── Session state ─────────────────────────────────────────────────────────────
-if "experiment_id" not in st.session_state:
-    st.session_state.experiment_id = None
+if "experiment_ids" not in st.session_state:
+    st.session_state.experiment_ids = []  # one id per provider group
 if "scorecards" not in st.session_state:
     st.session_state.scorecards = None
 
@@ -41,6 +41,11 @@ DISPLAY_NAMES: dict[str, str] = {
     "gpt-4o": "GPT-4o",
     "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
     "claude-sonnet-4-20250514": "Claude Sonnet 4",
+}
+
+# Reverse-lookup: model id → provider name
+MODEL_TO_PROVIDER: dict[str, str] = {
+    m: provider for provider, models in MODELS.items() for m in models
 }
 
 
@@ -272,11 +277,14 @@ with experiment_tab:
         )
 
     with col_e2:
-        exp_provider = st.selectbox("Provider", list(MODELS.keys()), key="exp_prov")
         exp_retriever = st.selectbox(
             "Retriever", ["chroma", "bm25", "hybrid"], key="exp_ret"
         )
         exp_top_k = st.slider("Top K Chunks", 1, 10, 5, key="exp_topk")
+        st.caption(
+            "Provider is auto-detected from the selected models — "
+            "mix OpenAI and Anthropic freely."
+        )
 
     st.markdown("##### Questions")
     n_q = int(
@@ -321,44 +329,77 @@ with experiment_tab:
 
     if run_btn:
         try:
-            combos = list(
-                itertools.product(selected_models, selected_prompts, valid_qs)
-            )
+            # Group selected models by provider so each gets one API call
+            provider_groups: dict[str, list[str]] = {}
+            for m in selected_models:
+                prov = MODEL_TO_PROVIDER[m]
+                provider_groups.setdefault(prov, []).append(m)
+
+            new_ids: list[str] = []
+            total_completed = 0
+
             with st.status(
                 f"Running {n_runs} combinations…", expanded=True
             ) as exp_status:
-                st.write("**Queued runs:**")
-                for m, p, q in combos:
-                    st.write(f"· {DISPLAY_NAMES.get(m, m)} × **{p}**" f" × `{q[:60]}`")
-                st.caption("Calling the API — one LLM request per run." " Please wait.")
-                resp = httpx.post(
-                    f"{API_BASE}/experiments/run",
-                    json={
-                        "models": selected_models,
-                        "prompt_versions": selected_prompts,
-                        "questions": valid_qs,
-                        "top_k": exp_top_k,
-                        "provider": exp_provider,
-                        "retriever": exp_retriever,
-                    },
-                    timeout=300,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                completed = data["total_runs"]
+                for prov, prov_models in provider_groups.items():
+                    n_prov = len(prov_models) * len(selected_prompts) * len(valid_qs)
+                    st.write(f"**{prov.title()} — {n_prov} run(s):**")
+                    for m, p, q in itertools.product(
+                        prov_models, selected_prompts, valid_qs
+                    ):
+                        st.write(
+                            f"· {DISPLAY_NAMES.get(m, m)} × **{p}**" f" × `{q[:55]}`"
+                        )
+                st.caption("Calling the API — one LLM request per run. Please wait.")
+                for prov, prov_models in provider_groups.items():
+                    resp = httpx.post(
+                        f"{API_BASE}/experiments/run",
+                        json={
+                            "models": prov_models,
+                            "prompt_versions": selected_prompts,
+                            "questions": valid_qs,
+                            "top_k": exp_top_k,
+                            "provider": prov,
+                            "retriever": exp_retriever,
+                        },
+                        timeout=300,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    new_ids.append(data["experiment_id"])
+                    total_completed += data["total_runs"]
+
+                    # Render per-run log mirroring the server-side output
+                    llm_op = (
+                        "openai.chat.completions"
+                        if prov == "openai"
+                        else "anthropic.client.messages"
+                    )
+                    log_lines = []
+                    for run in data.get("runs", []):
+                        q = run["question"][:55]
+                        log_lines.append(
+                            f"  → {run['model']} | " f"{run['prompt_version']} | {q}"
+                        )
+                        log_lines.append("      chroma.query              ✓")
+                        log_lines.append(
+                            f"      {llm_op:<28} ✓"
+                            f"  {run['latency_ms']:.0f} ms"
+                            f"  ·  ${run['cost_usd']:.5f}"
+                        )
+                    if log_lines:
+                        st.code("\n".join(log_lines), language=None)
                 exp_status.update(
-                    label=f"{completed}/{n_runs} runs completed ✓",
+                    label=f"{total_completed}/{n_runs} runs completed ✓",
                     state="complete",
                     expanded=False,
                 )
 
-            st.session_state.experiment_id = data["experiment_id"]
+            st.session_state.experiment_ids = new_ids
             st.session_state.scorecards = None
             st.success("Switch to the **Results** tab to evaluate with Ragas.")
-            st.code(
-                f"experiment_id: {st.session_state.experiment_id}",
-                language=None,
-            )
+            for eid in new_ids:
+                st.code(f"experiment_id: {eid}", language=None)
 
         except httpx.HTTPStatusError as exc:
             detail = exc.response.json().get("detail", str(exc))
@@ -373,15 +414,17 @@ with experiment_tab:
 with results_tab:
     st.markdown("##### Scorecards")
 
-    if not st.session_state.experiment_id:
+    if not st.session_state.experiment_ids:
         st.info("Run an experiment first to see results here.", icon="ℹ️")
     else:
-        st.caption(f"Experiment: `{st.session_state.experiment_id}`")
+        for eid in st.session_state.experiment_ids:
+            st.caption(f"Experiment: `{eid}`")
 
         eval_btn = st.button("Evaluate with Ragas", type="primary", key="eval_btn")
 
         if eval_btn:
             try:
+                all_scorecards: list[dict] = []
                 with st.status("Evaluating with Ragas…", expanded=True) as eval_status:
                     st.write("**Step 1 / 3** — Loading runs from SQLite")
                     st.write(
@@ -389,19 +432,21 @@ with results_tab:
                         " **Faithfulness** (LLM-as-judge via OpenAI)"
                     )
                     st.write("**Step 3 / 3** — Building scorecards")
-                    resp = httpx.post(
-                        f"{API_BASE}/experiments/evaluate",
-                        params={"experiment_id": st.session_state.experiment_id},
-                        timeout=120,
-                    )
-                    resp.raise_for_status()
-                    st.session_state.scorecards = resp.json()
-                    n = len(st.session_state.scorecards)
+                    for eid in st.session_state.experiment_ids:
+                        resp = httpx.post(
+                            f"{API_BASE}/experiments/evaluate",
+                            params={"experiment_id": eid},
+                            timeout=120,
+                        )
+                        resp.raise_for_status()
+                        all_scorecards.extend(resp.json())
+                    n = len(all_scorecards)
                     eval_status.update(
                         label=f"Evaluation complete — {n} scorecard(s) ✓",
                         state="complete",
                         expanded=False,
                     )
+                st.session_state.scorecards = all_scorecards
 
             except httpx.HTTPStatusError as exc:
                 detail = exc.response.json().get("detail", str(exc))
@@ -420,17 +465,19 @@ with results_tab:
 
             best = scorecards[0]
             best_name = DISPLAY_NAMES.get(best["model"], best["model"])
+            best_prov = MODEL_TO_PROVIDER.get(best["model"], "").title()
             st.success(
-                f"Best performer: **{best_name}** "
-                f"with prompt **{best['prompt_version']}** — "
+                f"Best performer: **{best_name}** ({best_prov})"
+                f" with prompt **{best['prompt_version']}** — "
                 f"faithfulness **{best['faithfulness']:.3f}**",
                 icon="🏆",
             )
 
-            # Scorecard table
+            # Scorecard table — Provider column makes cross-provider comparison clear
             df = pd.DataFrame(
                 [
                     {
+                        "Provider": MODEL_TO_PROVIDER.get(s["model"], "—").title(),
                         "Model": DISPLAY_NAMES.get(s["model"], s["model"]),
                         "Prompt": s["prompt_version"],
                         "Faithfulness": round(s["faithfulness"], 3),
