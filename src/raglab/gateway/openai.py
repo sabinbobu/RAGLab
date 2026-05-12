@@ -1,5 +1,6 @@
 import time
 
+import logfire
 from openai import OpenAI
 
 from raglab.config import MODEL_PRICING
@@ -13,11 +14,12 @@ class OpenAIProvider:
     def generate(self, messages: list[dict], model: str) -> LLMResponse:
         start = time.perf_counter()
 
-        response = self.client.chat.completions.create(
-            model=model,
-            # OpenAI accepts messages list natively — system + user roles work as-is
-            messages=messages,
-        )
+        with logfire.span("openai.chat.completions", model=model):
+            response = self.client.chat.completions.create(
+                model=model,
+                # OpenAI accepts messages list natively — system + user roles work as-is
+                messages=messages,
+            )
 
         latency_ms = (time.perf_counter() - start) * 1000
 

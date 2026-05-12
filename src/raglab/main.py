@@ -11,8 +11,11 @@ from raglab.gateway.factory import get_provider
 from raglab.prompts import load_prompt
 from raglab.retrieval.base import RetrievedChunk
 from raglab.retrieval.chroma import ChromaRetriever
+from raglab.telemetry import setup_telemetry
 
 app = FastAPI(title="RAGLab")
+
+setup_telemetry(app)
 
 
 class GenerateRequest(BaseModel):
@@ -101,3 +104,8 @@ def run_experiments(config: ExperimentConfig) -> dict:
 @app.post("/experiments/evaluate")
 def evaluate(experiment_id: str) -> list[Scorecard]:
     return evaluate_experiment(experiment_id)
+
+
+@app.get("/")
+def health() -> dict:
+    return {"status": "ok", "service": "raglab"}

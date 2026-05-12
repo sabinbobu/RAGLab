@@ -1,5 +1,6 @@
 import time
 
+import logfire
 from anthropic import Anthropic
 
 from raglab.config import MODEL_PRICING
@@ -24,12 +25,13 @@ class AnthropicProvider:
         # in the messages list
         user_messages = [m for m in messages if m["role"] != "system"]
 
-        response = self.client.messages.create(
-            model=model,
-            max_tokens=1024,
-            system=system,
-            messages=user_messages,
-        )
+        with logfire.span("anthropic.client.messages", model=model):
+            response = self.client.messages.create(
+                model=model,
+                max_tokens=1024,
+                system=system,
+                messages=user_messages,
+            )
 
         latency_ms = (time.perf_counter() - start) * 1000
 
