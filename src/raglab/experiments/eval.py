@@ -72,7 +72,8 @@ def evaluate_experiment(experiment_id: str) -> list[Scorecard]:
         )
 
         # results.to_pandas() gives a DataFrame — extract mean per metric
-        df = results.to_pandas()  # type: ignore[union-attr]
+        assert hasattr(results, "to_pandas"), "evaluate() returned unexpected type"
+        df = results.to_pandas()
 
         scorecards.append(
             Scorecard(
