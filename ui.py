@@ -9,6 +9,9 @@ Requires the FastAPI backend to be running:
 
 from __future__ import annotations
 
+from collections import Counter
+
+import chromadb
 import httpx
 import pandas as pd
 import streamlit as st
@@ -71,6 +74,46 @@ with hdr_right:
         "border-radius:9999px;font-size:0.75rem;font-weight:600'>FastAPI</span>"
         "</div>",
         unsafe_allow_html=True,
+    )
+
+st.divider()
+
+
+# ── Corpus ────────────────────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def _corpus_stats() -> list[dict]:
+    """Return per-document stats from ChromaDB (cached for the session)."""
+    try:
+        client = chromadb.PersistentClient(path=".chroma")
+        col = client.get_collection(name="raglab")
+        result = col.get(include=["metadatas"])
+        metas = result["metadatas"] or []
+        chunk_counts = Counter(str(m.get("source", "unknown")) for m in metas)
+        page_counts = {}
+        for m in metas:
+            src = str(m.get("source", "unknown"))
+            page_counts[src] = max(page_counts.get(src, 0), int(m.get("page", 0)))
+        return [
+            {"Document": src, "Pages": page_counts[src], "Chunks": cnt}
+            for src, cnt in sorted(chunk_counts.items())
+        ]
+    except Exception:
+        return []
+
+
+docs = _corpus_stats()
+if docs:
+    st.markdown(f"**Corpus** — {len(docs)} document(s) ingested")
+    st.dataframe(
+        pd.DataFrame(docs),
+        use_container_width=True,
+        hide_index=True,
+    )
+else:
+    st.info(
+        "No documents ingested yet. "
+        "Run `uv run raglab ingest data/` to populate the corpus.",
+        icon="📂",
     )
 
 st.divider()
